@@ -1,0 +1,21 @@
+﻿@inherits LayoutComponentBase
+
+<div class="d-flex flex-column min-vh-100">
+    <header>
+        <NavMenu />
+    </header>
+
+    <main class="container my-4 flex-grow-1">
+        @Body
+    </main>
+
+    <footer class="text-center py-3 border-top" style="color: var(--peret-muted); border-color: var(--peret-border) !important;">
+        <small>Peret &copy; 2026</small>
+    </footer>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
