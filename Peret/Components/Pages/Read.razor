@@ -1,0 +1,168 @@
+@page "/read"
+@rendermode InteractiveServer
+@using Peret.Models
+@using Peret.Services
+@inject ScriptureService ScriptureService
+
+<PageTitle>@selectedBook @selectedChapter - Peret</PageTitle>
+
+
+<button class="reader-nav-btn prev-btn" 
+        @onclick="PreviousChapter" 
+        disabled="@IsFirstChapterOfAll()" 
+        title="Previous chapter"
+        aria-label="Previous chapter">
+    &#8249;
+</button>
+
+<button class="reader-nav-btn next-btn" 
+        @onclick="NextChapter" 
+        disabled="@IsLastChapterOfAll()" 
+        title="Next chapter"
+        aria-label="Next chapter">
+    &#8250;
+</button>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+        
+        <div class="peret-card py-2 px-3 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <span class="small fw-semibold text-uppercase" style="color: var(--peret-muted); letter-spacing: 0.5px;">
+                Scripture Reader
+            </span>
+
+            <div class="d-flex align-items-center gap-2">
+                <select aria-label="Select Book" class="form-select form-select-sm" style="width: auto;" value="@selectedBook" @onchange="OnBookChanged">
+                    @foreach (var book in books)
+                    {
+                        <option value="@book">@book</option>
+                    }
+                </select>
+
+                <select aria-label="Select Chapter" class="form-select form-select-sm" style="width: auto;" value="@selectedChapter" @onchange="OnChapterChanged">
+                    @foreach (var chapterNum in chapterNumbers)
+                    {
+                        <option value="@chapterNum">Chapter @chapterNum</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <!-- Chapter content -->
+        @if (currentChapter != null)
+        {
+            <div class="peret-card">
+                <h3 class="border-bottom pb-2 mb-4" style="color: var(--peret-navy);">
+                    @selectedBook @currentChapter.Chapter
+                </h3>
+
+                <div class="scripture-text">
+                    @foreach (var verse in currentChapter.Verses)
+                    {
+                        <p class="mb-3">
+                            <sup class="fw-bold me-1" style="color: var(--peret-gold);">@verse.Verse</sup>
+                            @verse.Text
+                        </p>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-warning">
+                No scripture data found. Make sure <code>wwwroot/data/book-of-mormon.json</code> is in place.
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<string> books = new();
+    private List<int> chapterNumbers = new();
+    private string selectedBook = "1 Nephi";
+    private int selectedChapter = 1;
+    private ChapterData? currentChapter;
+
+    protected override void OnInitialized()
+    {
+        books = ScriptureService.GetBookNames();
+        if (books.Count > 0)
+        {
+            selectedBook = books[0];
+            LoadChaptersForBook(startAtLastChapter: false);
+        }
+    }
+
+    private void LoadChaptersForBook(bool startAtLastChapter)
+    {
+        chapterNumbers = ScriptureService.GetChapterNumbers(selectedBook);
+        if (chapterNumbers.Count > 0)
+        {
+            selectedChapter = startAtLastChapter ? chapterNumbers.Last() : chapterNumbers.First();
+            currentChapter = ScriptureService.GetChapter(selectedBook, selectedChapter);
+        }
+    }
+
+    private void OnBookChanged(ChangeEventArgs e)
+    {
+        selectedBook = e.Value?.ToString() ?? "1 Nephi";
+        LoadChaptersForBook(startAtLastChapter: false);
+    }
+
+    private void OnChapterChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int chapter))
+        {
+            selectedChapter = chapter;
+            currentChapter = ScriptureService.GetChapter(selectedBook, selectedChapter);
+        }
+    }
+
+    private void PreviousChapter()
+    {
+        if (selectedChapter > 1)
+        {
+            selectedChapter--;
+            currentChapter = ScriptureService.GetChapter(selectedBook, selectedChapter);
+        }
+        else
+        {
+            // jump yo the last chapter of the previous book
+            int currentBookIndex = books.IndexOf(selectedBook);
+            if (currentBookIndex > 0)
+            {
+                selectedBook = books[currentBookIndex - 1];
+                LoadChaptersForBook(startAtLastChapter: true);
+            }
+        }
+    }
+
+    private void NextChapter()
+    {
+        if (selectedChapter < chapterNumbers.Count)
+        {
+            selectedChapter++;
+            currentChapter = ScriptureService.GetChapter(selectedBook, selectedChapter);
+        }
+        else
+        {
+            // jump to the first chapter of the next book
+            int currentBookIndex = books.IndexOf(selectedBook);
+            if (currentBookIndex >= 0 && currentBookIndex < books.Count - 1)
+            {
+                selectedBook = books[currentBookIndex + 1];
+                LoadChaptersForBook(startAtLastChapter: false);
+            }
+        }
+    }
+
+    private bool IsFirstChapterOfAll()
+    {
+        return books.Count == 0 || (selectedBook == books.First() && selectedChapter <= 1);
+    }
+
+    private bool IsLastChapterOfAll()
+    {
+        return books.Count == 0 || (selectedBook == books.Last() && selectedChapter >= chapterNumbers.Count);
+    }
+}

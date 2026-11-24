@@ -222,7 +222,7 @@ C:\Users\default.LAPTOP-FJ8CKPDK\Desktop\BYU\CSE 325\CSE325-Project\Repo\CSE325p
 C:\Users\default.LAPTOP-FJ8CKPDK\Desktop\BYU\CSE 325\CSE325-Project\Repo\CSE325project\Peret\obj\Debug\net11.0\Peret.pdb
 C:\Users\default.LAPTOP-FJ8CKPDK\Desktop\BYU\CSE 325\CSE325-Project\Repo\CSE325project\Peret\obj\Debug\net11.0\Peret.genruntimeconfig.cache
 C:\Users\default.LAPTOP-FJ8CKPDK\Desktop\BYU\CSE 325\CSE325-Project\Repo\CSE325project\Peret\obj\Debug\net11.0\ref\Peret.dll
-C:\Users\default.LAPTOP-FJ8CKPDK\Desktop\BYU\CSE 325\CSE325-Project\Repo\CSE325project\Peret\obj\Debug\net11.0\compressed\trh35mgfco-{0}-9dig62a6tz-9dig62a6tz.gz
 C:\Users\default.LAPTOP-FJ8CKPDK\Desktop\BYU\CSE 325\CSE325-Project\Repo\CSE325project\peret\obj\Debug\net11.0\compressed\5q5409ajom-{0}-q1hf7dn255-q1hf7dn255.gz
 C:\Users\default.LAPTOP-FJ8CKPDK\Desktop\BYU\CSE 325\CSE325-Project\Repo\CSE325project\peret\obj\Debug\net11.0\compressed\ifw502j45e-{0}-q1hf7dn255-q1hf7dn255.gz
 C:\Users\default.LAPTOP-FJ8CKPDK\Desktop\BYU\CSE 325\CSE325-Project\Repo\CSE325project\peret\obj\Debug\net11.0\compressed\fo0h1njdpl-{0}-1ahsthqiet-1ahsthqiet.gz
+C:\Users\default.LAPTOP-FJ8CKPDK\Desktop\BYU\CSE 325\CSE325-Project\Repo\CSE325project\peret\obj\Debug\net11.0\compressed\trh35mgfco-{0}-921npa5ird-921npa5ird.gz

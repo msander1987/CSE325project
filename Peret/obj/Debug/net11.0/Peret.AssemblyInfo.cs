@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Peret")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+de221d2b0e55f348cc6fe1de870c376a450e8e2a")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7d1a50e95b93b0391bf3e8fdb428d5f151dceacd")]
 [assembly: System.Reflection.AssemblyProductAttribute("Peret")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Peret")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
