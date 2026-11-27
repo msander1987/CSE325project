@@ -240,3 +240,49 @@ body {
         border-color: var(--peret-navy);
     }
 }
+
+
+/*reading action buttons*/
+.reader-fab-group {
+    position: fixed;
+    bottom: 14px;
+    left: 10px;
+    z-index: 105;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.reader-fab-btn {
+    background-color: rgba(255, 255, 255, 0.92);
+    color: var(--peret-navy);
+    border: 1px solid var(--peret-border);
+    border-radius: 20px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(27, 42, 74, 0.12);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    backdrop-filter: blur(3px);
+}
+
+.reader-fab-btn:hover {
+    background-color: var(--peret-navy);
+    color: var(--peret-gold);
+    border-color: var(--peret-navy);
+}
+
+
+@media (min-width: 768px) {
+    .reader-fab-group {
+        left: 24px;
+        bottom: 24px;
+    }
+
+    .reader-fab-btn {
+        padding: 0.45rem 0.9rem;
+        font-size: 0.85rem;
+    }
+}

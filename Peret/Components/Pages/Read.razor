@@ -1,12 +1,16 @@
 @page "/read"
 @rendermode InteractiveServer
+@using System.Security.Claims
 @using Peret.Models
 @using Peret.Services
 @inject ScriptureService ScriptureService
+@inject StudyService StudyService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
 
 <PageTitle>@selectedBook @selectedChapter - Peret</PageTitle>
 
-
+<!-- float arrows -->
 <button class="reader-nav-btn prev-btn" 
         @onclick="PreviousChapter" 
         disabled="@IsFirstChapterOfAll()" 
@@ -23,13 +27,34 @@
     &#8250;
 </button>
 
+<!-- float buttons for logged users -->
+@if (!string.IsNullOrEmpty(currentUserId))
+{
+    <div class="reader-fab-group">
+        <button class="reader-fab-btn" @onclick="OpenNewNoteModal" title="Add a note for this chapter">
+            + Note
+        </button>
+        <button class="reader-fab-btn" @onclick="OpenNewQuizModal" title="Create a quiz question for this chapter">
+            + Quiz (@chapterQuestionCount)
+        </button>
+    </div>
+}
+
 <div class="row justify-content-center">
     <div class="col-lg-8 col-md-10">
-        
+        <!-- book and chapter bar selection -->
         <div class="peret-card py-2 px-3 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <span class="small fw-semibold text-uppercase" style="color: var(--peret-muted); letter-spacing: 0.5px;">
-                Scripture Reader
-            </span>
+            <div class="d-flex align-items-center gap-2">
+                <span class="small fw-semibold text-uppercase" style="color: var(--peret-muted); letter-spacing: 0.5px;">
+                    Reader
+                </span>
+                @if (!string.IsNullOrEmpty(currentUserId))
+                {
+                    <span class="badge rounded-pill" style="background-color: var(--peret-navy); color: var(--peret-gold);">
+                        Campaign #@currentCampaignNumber
+                    </span>
+                }
+            </div>
 
             <div class="d-flex align-items-center gap-2">
                 <select aria-label="Select Book" class="form-select form-select-sm" style="width: auto;" value="@selectedBook" @onchange="OnBookChanged">
@@ -48,13 +73,36 @@
             </div>
         </div>
 
-        <!-- Chapter content -->
+        <!-- final campaign advice -->
+        @if (showCampaignCompletedBanner)
+        {
+            <div class="peret-card mb-3 border-warning text-center">
+                <h4 style="color: var(--peret-navy);">Campaign #@currentCampaignNumber Completed!</h4>
+                <p class="mb-3" style="color: var(--peret-muted);">
+                    You have finished reading the entire book. Ready to start a fresh reading campaign?
+                </p>
+                <button class="btn btn-peret-primary" @onclick="StartNextCampaign">
+                    Start Campaign #@(currentCampaignNumber + 1)
+                </button>
+            </div>
+        }
+
+        <!-- chapter content-->
         @if (currentChapter != null)
         {
-            <div class="peret-card">
-                <h3 class="border-bottom pb-2 mb-4" style="color: var(--peret-navy);">
-                    @selectedBook @currentChapter.Chapter
-                </h3>
+            <div class="peret-card mb-4">
+                <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-4">
+                    <h3 class="m-0" style="color: var(--peret-navy);">
+                        @selectedBook @currentChapter.Chapter
+                    </h3>
+
+                    @if (!string.IsNullOrEmpty(currentUserId) && isCurrentChapterRead)
+                    {
+                        <span class="badge bg-success-subtle text-success border border-success-subtle">
+                            &#10003; Read in Campaign #@currentCampaignNumber
+                        </span>
+                    }
+                </div>
 
                 <div class="scripture-text">
                     @foreach (var verse in currentChapter.Verses)
@@ -65,95 +113,425 @@
                         </p>
                     }
                 </div>
+
+                <!-- mark read chapter button -->
+                <div class="border-top pt-3 mt-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    @if (!string.IsNullOrEmpty(currentUserId))
+                    {
+                        <small style="color: var(--peret-muted);">
+                            Campaign #@currentCampaignNumber &bull; @chapterQuestionCount quiz question(s) created here
+                        </small>
+
+                        <button class="btn btn-peret-primary" @onclick="MarkAsReadAndAdvance">
+                            @(isCurrentChapterRead ? "Read Again & Next Chapter \u2192" : "Mark as Read & Next Chapter \u2192")
+                        </button>
+                    }
+                    else
+                    {
+                        <small style="color: var(--peret-muted);">
+                            <a href="Account/Login" style="color: var(--peret-navy); font-weight: 600;">Log in</a> to track your reading campaign, save notes, and create quiz questions.
+                        </small>
+                    }
+                </div>
             </div>
+
+            <!-- getting notes from current chapter -->
+            @if (!string.IsNullOrEmpty(currentUserId))
+            {
+                <div class="peret-card mb-5">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="m-0" style="color: var(--peret-navy);">
+                            My Notes &mdash; @selectedBook @selectedChapter
+                        </h5>
+                        <button class="btn btn-sm btn-peret-navy" @onclick="OpenNewNoteModal">+ Add Note</button>
+                    </div>
+
+                    @if (chapterNotes.Count == 0)
+                    {
+                        <p class="small mb-0" style="color: var(--peret-muted);">
+                            No notes for this chapter yet in Campaign #@currentCampaignNumber.
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="d-flex flex-column gap-2">
+                            @foreach (var note in chapterNotes)
+                            {
+                                <div class="p-3 rounded border" style="background-color: var(--peret-ivory); border-color: var(--peret-border) !important;">
+                                    <div class="d-flex justify-content-between align-items-start mb-1">
+                                        <span class="badge" style="background-color: var(--peret-navy); color: #fff;">
+                                            @(note.Verse.HasValue ? $"Verse {note.Verse}" : "Chapter Note")
+                                        </span>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-sm btn-link p-0 text-decoration-none" @onclick="() => OpenEditNoteModal(note)">Edit</button>
+                                            <button class="btn btn-sm btn-link p-0 text-danger text-decoration-none" @onclick="() => DeleteNote(note.Id)">Delete</button>
+                                        </div>
+                                    </div>
+                                    <p class="mb-1" style="white-space: pre-wrap;">@note.Content</p>
+                                    <small style="color: var(--peret-muted); font-size: 0.75rem;">
+                                        @note.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")
+                                    </small>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
         }
         else
         {
             <div class="alert alert-warning">
-                No scripture data found. Make sure <code>wwwroot/data/book-of-mormon.json</code> is in place.
+                No scripture data found.
             </div>
         }
     </div>
 </div>
 
+<!-- add note modal -->
+@if (showNoteModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header" style="background-color: var(--peret-navy); color: #fff;">
+                    <h5 class="modal-title">
+                        @(editingNote.Id == 0 ? $"New Note - {selectedBook} {selectedChapter}" : $"Edit Note - {selectedBook} {selectedChapter}")
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModals"></button>
+                </div>
+                <EditForm Model="editingNote" OnValidSubmit="SaveNote">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Verse (Optional)</label>
+                            <select class="form-select" @bind="editingNote.Verse">
+                                <option value="">General chapter note</option>
+                                @if (currentChapter != null)
+                                {
+                                    @foreach (var v in currentChapter.Verses)
+                                    {
+                                        <option value="@v.Verse">Verse @v.Verse</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Your Reflection / Note</label>
+                            <InputTextArea class="form-control" rows="4" @bind-Value="editingNote.Content" placeholder="Write your thoughts or insights..." />
+                            <ValidationMessage For="@(() => editingNote.Content)" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CloseModals">Cancel</button>
+                        <button type="submit" class="btn btn-peret-primary">Save Note</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- add question modal -->
+@if (showQuizModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header" style="background-color: var(--peret-navy); color: #fff;">
+                    <h5 class="modal-title">New Quiz Question &mdash; @selectedBook @selectedChapter</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModals"></button>
+                </div>
+                <EditForm Model="newQuestion" OnValidSubmit="SaveQuizQuestion">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <p class="small mb-2" style="color: var(--peret-muted);">
+                            Linked to <strong>@selectedBook @selectedChapter</strong> (Campaign #@currentCampaignNumber)
+                        </p>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Question</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="newQuestion.QuestionText" placeholder="e.g., Who commanded Nephi to return for the brass plates?" />
+                            <ValidationMessage For="@(() => newQuestion.QuestionText)" />
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold text-success">Correct Answer</label>
+                            <InputText class="form-control border-success" @bind-Value="newQuestion.CorrectAnswer" placeholder="Correct option" />
+                            <ValidationMessage For="@(() => newQuestion.CorrectAnswer)" />
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold">Wrong Option B</label>
+                            <InputText class="form-control" @bind-Value="newQuestion.OptionB" placeholder="Distractor 1" />
+                            <ValidationMessage For="@(() => newQuestion.OptionB)" />
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold">Wrong Option C</label>
+                            <InputText class="form-control" @bind-Value="newQuestion.OptionC" placeholder="Distractor 2" />
+                            <ValidationMessage For="@(() => newQuestion.OptionC)" />
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold">Wrong Option D</label>
+                            <InputText class="form-control" @bind-Value="newQuestion.OptionD" placeholder="Distractor 3" />
+                            <ValidationMessage For="@(() => newQuestion.OptionD)" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CloseModals">Cancel</button>
+                        <button type="submit" class="btn btn-peret-primary">Save Question</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
+    private const string CurrentBookSetId = "bom-en";
+
     private List<string> books = new();
     private List<int> chapterNumbers = new();
     private string selectedBook = "1 Nephi";
     private int selectedChapter = 1;
     private ChapterData? currentChapter;
 
-    protected override void OnInitialized()
+    // User status
+    private string? currentUserId;
+    private int currentCampaignNumber = 1;
+    private bool isCurrentChapterRead = false;
+    private bool showCampaignCompletedBanner = false;
+
+    // Notes abd questions
+    private List<StudyNote> chapterNotes = new();
+    private int chapterQuestionCount = 0;
+
+    // Modals
+    private bool showNoteModal = false;
+    private bool showQuizModal = false;
+    private StudyNote editingNote = new();
+    private QuizQuestion newQuestion = new();
+
+    protected override async Task OnInitializedAsync()
     {
         books = ScriptureService.GetBookNames();
-        if (books.Count > 0)
+        if (books.Count == 0) return;
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (!string.IsNullOrEmpty(currentUserId))
+        {
+            var campaign = await StudyService.GetOrCreateCampaignAsync(currentUserId, CurrentBookSetId, books[0]);
+            currentCampaignNumber = campaign.CurrentCampaign;
+            selectedBook = books.Contains(campaign.LastBook) ? campaign.LastBook : books[0];
+            chapterNumbers = ScriptureService.GetChapterNumbers(selectedBook);
+            selectedChapter = chapterNumbers.Contains(campaign.LastChapter) ? campaign.LastChapter : 1;
+        }
+        else
         {
             selectedBook = books[0];
-            LoadChaptersForBook(startAtLastChapter: false);
+            chapterNumbers = ScriptureService.GetChapterNumbers(selectedBook);
+            selectedChapter = 1;
         }
+
+        await LoadChapterContentAndStudyData();
     }
 
-    private void LoadChaptersForBook(bool startAtLastChapter)
+    private async Task LoadChapterContentAndStudyData()
     {
-        chapterNumbers = ScriptureService.GetChapterNumbers(selectedBook);
-        if (chapterNumbers.Count > 0)
+        currentChapter = ScriptureService.GetChapter(selectedBook, selectedChapter);
+        showCampaignCompletedBanner = false;
+
+        if (!string.IsNullOrEmpty(currentUserId))
         {
-            selectedChapter = startAtLastChapter ? chapterNumbers.Last() : chapterNumbers.First();
-            currentChapter = ScriptureService.GetChapter(selectedBook, selectedChapter);
+            isCurrentChapterRead = await StudyService.IsChapterReadAsync(
+                currentUserId, CurrentBookSetId, currentCampaignNumber, selectedBook, selectedChapter);
+
+            chapterNotes = await StudyService.GetNotesForChapterAsync(
+                currentUserId, CurrentBookSetId, currentCampaignNumber, selectedBook, selectedChapter);
+
+            chapterQuestionCount = await StudyService.GetQuestionCountForChapterAsync(
+                currentUserId, CurrentBookSetId, currentCampaignNumber, selectedBook, selectedChapter);
         }
     }
 
-    private void OnBookChanged(ChangeEventArgs e)
+    private async Task OnBookChanged(ChangeEventArgs e)
     {
-        selectedBook = e.Value?.ToString() ?? "1 Nephi";
-        LoadChaptersForBook(startAtLastChapter: false);
+        selectedBook = e.Value?.ToString() ?? books[0];
+        chapterNumbers = ScriptureService.GetChapterNumbers(selectedBook);
+        selectedChapter = chapterNumbers.FirstOrDefault(1);
+        await LoadChapterContentAndStudyData();
     }
 
-    private void OnChapterChanged(ChangeEventArgs e)
+    private async Task OnChapterChanged(ChangeEventArgs e)
     {
         if (int.TryParse(e.Value?.ToString(), out int chapter))
         {
             selectedChapter = chapter;
-            currentChapter = ScriptureService.GetChapter(selectedBook, selectedChapter);
+            await LoadChapterContentAndStudyData();
         }
     }
 
-    private void PreviousChapter()
+    private async Task PreviousChapter()
     {
         if (selectedChapter > 1)
         {
             selectedChapter--;
-            currentChapter = ScriptureService.GetChapter(selectedBook, selectedChapter);
         }
         else
         {
-            // jump yo the last chapter of the previous book
             int currentBookIndex = books.IndexOf(selectedBook);
             if (currentBookIndex > 0)
             {
                 selectedBook = books[currentBookIndex - 1];
-                LoadChaptersForBook(startAtLastChapter: true);
+                chapterNumbers = ScriptureService.GetChapterNumbers(selectedBook);
+                selectedChapter = chapterNumbers.Last();
             }
         }
+        await LoadChapterContentAndStudyData();
+        await ScrollToTop();
     }
 
-    private void NextChapter()
+    private async Task NextChapter()
     {
         if (selectedChapter < chapterNumbers.Count)
         {
             selectedChapter++;
-            currentChapter = ScriptureService.GetChapter(selectedBook, selectedChapter);
         }
         else
         {
-            // jump to the first chapter of the next book
             int currentBookIndex = books.IndexOf(selectedBook);
             if (currentBookIndex >= 0 && currentBookIndex < books.Count - 1)
             {
                 selectedBook = books[currentBookIndex + 1];
-                LoadChaptersForBook(startAtLastChapter: false);
+                chapterNumbers = ScriptureService.GetChapterNumbers(selectedBook);
+                selectedChapter = chapterNumbers.First();
             }
         }
+        await LoadChapterContentAndStudyData();
+        await ScrollToTop();
+    }
+
+    private async Task MarkAsReadAndAdvance()
+    {
+        if (string.IsNullOrEmpty(currentUserId)) return;
+
+        await StudyService.MarkChapterAsReadAsync(
+            currentUserId, CurrentBookSetId, currentCampaignNumber, selectedBook, selectedChapter);
+
+        if (IsLastChapterOfAll())
+        {
+            isCurrentChapterRead = true;
+            showCampaignCompletedBanner = true;
+            await ScrollToTop();
+            return;
+        }
+        await NextChapter();
+        await StudyService.UpdateBookmarkAsync(currentUserId, CurrentBookSetId, selectedBook, selectedChapter);
+    }
+
+    private async Task StartNextCampaign()
+    {
+        if (string.IsNullOrEmpty(currentUserId) || books.Count == 0) return;
+
+        var updatedCampaign = await StudyService.StartNewCampaignAsync(currentUserId, CurrentBookSetId, books[0]);
+        currentCampaignNumber = updatedCampaign.CurrentCampaign;
+        selectedBook = updatedCampaign.LastBook;
+        chapterNumbers = ScriptureService.GetChapterNumbers(selectedBook);
+        selectedChapter = updatedCampaign.LastChapter;
+
+        await LoadChapterContentAndStudyData();
+        await ScrollToTop();
+    }
+
+    // Modals for notes and quizz
+    private void OpenNewNoteModal()
+    {
+        if (string.IsNullOrEmpty(currentUserId)) return;
+        editingNote = new StudyNote
+        {
+            UserId = currentUserId,
+            BookSetId = CurrentBookSetId,
+            CampaignNumber = currentCampaignNumber,
+            Book = selectedBook,
+            Chapter = selectedChapter
+        };
+        showNoteModal = true;
+    }
+
+    private void OpenEditNoteModal(StudyNote note)
+    {
+        editingNote = new StudyNote
+        {
+            Id = note.Id,
+            UserId = note.UserId,
+            BookSetId = note.BookSetId,
+            CampaignNumber = note.CampaignNumber,
+            Book = note.Book,
+            Chapter = note.Chapter,
+            Verse = note.Verse,
+            Content = note.Content
+        };
+        showNoteModal = true;
+    }
+
+    private async Task SaveNote()
+    {
+        if (string.IsNullOrEmpty(currentUserId)) return;
+
+        if (editingNote.Id == 0)
+            await StudyService.AddNoteAsync(editingNote);
+        else
+            await StudyService.UpdateNoteAsync(editingNote);
+
+        showNoteModal = false;
+        chapterNotes = await StudyService.GetNotesForChapterAsync(
+            currentUserId, CurrentBookSetId, currentCampaignNumber, selectedBook, selectedChapter);
+    }
+
+    private async Task DeleteNote(int noteId)
+    {
+        if (string.IsNullOrEmpty(currentUserId)) return;
+        await StudyService.DeleteNoteAsync(noteId, currentUserId);
+        chapterNotes = await StudyService.GetNotesForChapterAsync(
+            currentUserId, CurrentBookSetId, currentCampaignNumber, selectedBook, selectedChapter);
+    }
+
+    private void OpenNewQuizModal()
+    {
+        if (string.IsNullOrEmpty(currentUserId)) return;
+        newQuestion = new QuizQuestion
+        {
+            CreatedByUserId = currentUserId,
+            BookSetId = CurrentBookSetId,
+            CampaignNumber = currentCampaignNumber,
+            Book = selectedBook,
+            Chapter = selectedChapter
+        };
+        showQuizModal = true;
+    }
+
+    private async Task SaveQuizQuestion()
+    {
+        if (string.IsNullOrEmpty(currentUserId)) return;
+        await StudyService.AddQuizQuestionAsync(newQuestion);
+        showQuizModal = false;
+        chapterQuestionCount = await StudyService.GetQuestionCountForChapterAsync(
+            currentUserId, CurrentBookSetId, currentCampaignNumber, selectedBook, selectedChapter);
+    }
+
+    private void CloseModals()
+    {
+        showNoteModal = false;
+        showQuizModal = false;
+    }
+
+    private async Task ScrollToTop()
+    {
+        await JS.InvokeVoidAsync("window.scrollTo", 0, 0);
     }
 
     private bool IsFirstChapterOfAll()
